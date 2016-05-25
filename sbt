@@ -118,7 +118,7 @@ declare -r script_name="${script_path##*/}"
 declare java_cmd="java"
 declare sbt_opts_file="$(init_default_option_file SBT_OPTS .sbtopts)"
 declare jvm_opts_file="$(init_default_option_file JVM_OPTS .jvmopts)"
-declare sbt_launch_repo="http://artifactory.dev.cba/simple/omnia"
+declare sbt_launch_repo
 
 # pull -J and -D options to give to java.
 declare -a residual_args
