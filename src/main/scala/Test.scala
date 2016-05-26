@@ -1,25 +1,26 @@
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.hadoop.io.{DataOutputBuffer, Writable, SequenceFile}
+import org.apache.hadoop.io.{Writable, SequenceFile}
 import org.apache.hadoop.io.SequenceFile.{CompressionType, Reader, Writer}
-import org.apache.hadoop.io.compress.{SnappyCodec, CompressionCodec, BZip2Codec}
-import org.apache.hadoop.mapreduce.lib.output.SequenceFileAsBinaryOutputFormat.WritableValueBytes
-import scopt.Read
+import org.apache.hadoop.io.compress.{SnappyCodec, CompressionCodec}
+
+import scopt.{OptionParser, Read}
 import scopt.Read.reads
 
-import scala.reflect.ClassTag
-import scala.util.{Failure, Try}
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Try}
 
 import Test._
 
 object Test {
 
+  implicit val pathRead: Read[Path] = reads(new Path(_))
+
   def createReader(path: Path, conf: Configuration = new Configuration()): Reader =
     if(FileSystem.get(conf).isFile(path)) {
       println(FileSystem.get(conf).getContentSummary(path))
-      //println(FileSystem.get(conf).listCorruptFileBlocks())
+
       new Reader(conf, Reader.file(path))
     }
     else
@@ -38,18 +39,10 @@ object Test {
       Writer.compression(compressionType, compressionCodec))
 
   def write(r: Reader, w: Writer) = {
-/*    val keyBytes  = new DataOutputBuffer()
-    val valBytes  = new WritableValueBytes()
-
-    Stream
-      .continually(r.nextRaw(keyBytes, valBytes))
-      .takeWhile(_ != -1)
-      .map{x => w.appendRaw(keyBytes.getData, 0, keyBytes.getLength, valBytes); x}
-      .sum*/
-
-    //WTFHadoop
+    //Dragons and more.
     val key   = instanceOfClassAsWritable(r.getKeyClass)
     val value = instanceOfClassAsWritable(r.getValueClass)
+
     Stream
       .continually(r.next(key, value))
       .takeWhile(_ != false)
@@ -57,7 +50,7 @@ object Test {
   }
 
   def printer(file: String, x: Reader) =
-    println(s"""|Info of file ${file}
+    println(s"""|Info of file $file
                 |Key class          : ${x.getKeyClassName}
                 |Value class        : ${x.getValueClassName}
                 |Compressed         : ${x.isCompressed}
@@ -70,54 +63,48 @@ object Test {
   def instanceOfClassAsWritable(x: Class[_]): Writable =
     x.newInstance().asInstanceOf[Writable]
 
-
   implicit class SafeOps[T](x: T) {
-    def safe: Option[T] = Try(x) match {
+    def safe = Try(x) match {
       case Failure(y) => sys.error(s"ERROR: $y")
       case x          => x.toOption
     }
-    def safeI: Option[T] = Try(x).toOption
+    def safeI = Try(x).toOption
   }
 }
 
 object TestRunner {
 
   case class Config(inFile: Option[Path] = None, outFile: Option[Path] = None)
-  implicit val pathRead: Read[Path] = reads(new Path(_))
 
   def main(args: Array[String]) {
-    val parser = new scopt.OptionParser[Config]("hadoop-test") {
-      head("hadoop-test", "0.1")
-      arg[Path]("<input file>") action{(x, c) => c.copy(inFile = Some(x))} text("input file")
-      arg[Path]("<output file>") action((x, c) => c.copy(outFile = Some(x))) text("output file")
+    val parser = new OptionParser[Config]("hadoop-test") {
+      head("hadoop-compress-test", "0.1.1")
+      arg[Path]("<input file>")   action ((x, c) => c.copy(inFile  = Some(x)))  text "input file"
+      arg[Path]("<output file>")  action ((x, c) => c.copy(outFile = Some(x)))  text "output file"
     }
 
     parser.parse(args, Config()) match {
-      case Some(config) =>
-      // do stuff
-
-      case None =>
-      // arguments are bad, error message will have been displayed
+      case Some(config) => run(config)
+      case None         => sys.exit(1)
     }
+  }
 
-    val arg = for {
-                    fromFile          <-  Try(new Path(args(0))).toOption
-                    toFile            <-  Try(new Path(args(1))).toOption
-                  } yield (fromFile, toFile)
+  def run(c: Config) = {
+    runSequence(c)
+  }
 
+  def runSequence(c: Config) = {
     val r   = for {
-                    file              <-  arg.map(_._1)
+                    file              <-  c.inFile
                     reader            <-  createReader(file).safe
                     _                 =   printer(file.toString, reader)
                   } yield reader
 
     val w   = for {
                     reader            <-  r
+                    oFile             <-  c.outFile
                     keyType           <-  reader.getKeyClass.safe
                     valType           <-  reader.getValueClass.safe
-                    key               <-  instanceOfClassAsWritable(keyType).safe
-                    value             <-  instanceOfClassAsWritable(valType).safe
-                    oFile             <-  arg.map(_._2)
                     writer            <-  createWriter(oFile, keyType, valType).safe
                   } yield writer
 

@@ -2,8 +2,8 @@ resolvers += Resolver.url("commbank-releases-ivy", new URL("http://commbank.arti
 
 val uniformVersion = "1.10.0-20160509042812-b923980"
 
-addSbtPlugin("au.com.cba.omnia" % "uniform-core"       % uniformVersion)
+addSbtPlugin("au.com.cba.omnia" % "uniform-core"        % uniformVersion)
 
-addSbtPlugin("au.com.cba.omnia" % "uniform-dependency" % uniformVersion)
+addSbtPlugin("au.com.cba.omnia" % "uniform-dependency"  % uniformVersion)
 
-addSbtPlugin("au.com.cba.omnia" % "uniform-assembly"  % uniformVersion)
+addSbtPlugin("au.com.cba.omnia" % "uniform-assembly"    % uniformVersion)
